@@ -1,37 +1,26 @@
-# Basic Data Layout
+# 代码布局
 
-Alright, so what's a linked list? Well basically, it's a bunch of pieces of data
-on the heap (hush, kernel people!) that point to each other in sequence. Linked
-lists are something procedural programmers shouldn't touch with a 10-foot pole,
-and what functional programmers use for everything. It seems fair, then, that we
-should ask functional programmers for the definition of a linked list. They will
-probably give you something like the following definition:
+首先想一个问题，什么是链表？简单来说，链表就是堆里的一块块通过指针相互链接起来的数据，是过程式语言最好别用但在函数式语言里哪儿都要用的结构。如果我们找一个函数式语言大师，问他什么是链表。他大概会说：
 
 ```haskell
 List a = Empty | Elem a (List a)
 ```
 
-Which reads approximately as "A List is either Empty or an Element followed by a
-List". This is a recursive definition expressed as a *sum type*, which is a
-fancy name for "a type that can have different values which may be different
-types". Rust calls sum types `enum`s! If you're coming from a C-like language,
-this is exactly the enum you know and love, but on meth. So let's transcribe
-this functional definition into Rust!
+这大概可以理解为“链表要么为空，要么是一块数据，数据后面跟着另一个链表”。这个*和类型(sum type)*是一个递归定义，用人话来说就是“一个可能含有各种类型的各种值的类型”。Rust 里我们也把这样的类型成为 `枚举量(enum)`。如果你学过类C的话，没错这个枚举就是你心里想的那个枚举，只不过这个枚举要刺激得多。
 
-For now we'll avoid generics to keep things simple. We'll only support
-storing signed 32-bit integers:
+用 Rust 的枚举来完成这个定义（我们先暂时忘掉泛型这个东西，像 Go 开发者一样…）
 
 ```rust ,ignore
 // in first.rs
-
-// pub says we want people outside this module to be able to use List
+// pub 表示我们想把这个枚举量公开出去给外部调用者使用
 pub enum List {
     Empty,
     Elem(i32, List),
 }
 ```
 
-*phew*, I'm swamped. Let's just go ahead and compile that:
+emm…代码量有点大，写完记得擦擦汗。
+然后我们来编译这段代码：
 
 ```text
 > cargo build
@@ -48,37 +37,39 @@ error[E0072]: recursive type `first::List` has infinite size
   = help: insert indirection (e.g., a `Box`, `Rc`, or `&`) at some point to make `first::List` representable
 ```
 
-Well. I don't know about you, but I certainly feel betrayed by the functional
-programming community.
+??? 这和函数式语言大师说好的不一样啊。行不行啊大师……
 
-If we actually check out the error message (after we get over the whole
-betrayal thing), we can see that rustc is actually telling us exactly
-how to solve this problem:
+好吧，抱怨完我们先看看错误信息。嗯？好像编译器正在教我们怎么解决这个问题：
 
 > insert indirection (e.g., a `Box`, `Rc`, or `&`) at some point to make `first::List` representable
 
-Alright, `box`. What's that? Let's google `rust box`...
+等等，`box` 是个啥？百度一下 `rust box`...
 
 > [std::boxed::Box - Rust](https://doc.rust-lang.org/std/boxed/struct.Box.html)
 
-Lesse here...
+介绍如下，比较简约
 
 > `pub struct Box<T>(_);`
 >
-> A pointer type for heap allocation.
-> See the [module-level documentation](https://doc.rust-lang.org/std/boxed/) for more.
+> A pointer type for heap allocation.(一个用于堆内存分配的指针。）
+> See the [module-level documentation](https://doc.rust-lang.org/std/boxed/) for more.(点击链接查阅更多信息。）
 
-*clicks link*
+那就*点击链接*我们看看更多的信息
+
 
 > `Box<T>`, casually referred to as a 'box', provides the simplest form of heap allocation in Rust. Boxes provide ownership for this allocation, and drop their contents when they go out of scope.
+> (`Box<T>`,也就是'box',在 Rust 要进行堆内存分配的话，box 用是最简单的方法，它对分配出的内存具有所有权，会自己生命周期结束之后把分配的这段堆内存释放掉。)
 >
 > Examples
+> (用法举例）
 >
 > Creating a box:
+> (创建box指针)
 >
 > `let x = Box::new(5);`
 >
 > Creating a recursive data structure:
+> (创建递归定义的数据结构)
 >
 ```rust
 #[derive(Debug)]
@@ -96,18 +87,21 @@ fn main() {
 ```
 >
 > This will print `Cons(1, Box(Cons(2, Box(Nil))))`.
+> (打印结果是`Cons(1, Box(Cons(2, Box(Nil))))`)
 >
 > Recursive structures must be boxed, because if the definition of Cons looked like this:
+> (递归定义的结构必须封装入如 box 的指针里，如果按照如下的定义:)
 >
 > `Cons(T, List<T>),`
 >
 > It wouldn't work. This is because the size of a List depends on how many elements are in the list, and so we don't know how much memory to allocate for a Cons. By introducing a Box, which has a defined size, we know how big Cons needs to be.
+> 定义就错误了。因为 List 的大小取决于它所包含的各个成员。但是我们无法确定 Cons 有多大，需要分配给它多少内存。而 box 指针则是确定大小的，所以用 box 指针作为 Cons 的成员的话，我们就能确定分配给 Cons 指针多少内存空间。
 
-Wow, uh. That is perhaps the most relevant and helpful documentation I have ever seen. Literally the first thing in the documentation is *exactly what we're trying to write, why it didn't work, and how to fix it*.
+完美！我从未见过如此详细有用的文档。直接解释了我们写的代码为什么错了，还给出了解决办法。
 
-Dang, docs rule.
+Rust 文档NB！
 
-Ok, let's do that:
+照猫画虎：
 
 ```rust ,ignore
 pub enum List {
@@ -122,47 +116,46 @@ pub enum List {
    Finished dev [unoptimized + debuginfo] target(s) in 0.22s
 ```
 
-Hey it built!
+哈，编译成功！
+……不过说实话，这个定义，字里行间都透露出一丝蠢萌，最好别让同学同事看到……
 
-...but this is actually a really foolish definition of a List, for a few reasons.
+傻在哪儿呢，比如说吧，我们现在的链表，有两种节点成员：
 
-Consider a list with two elements:
 
 ```text
-[] = Stack
-() = Heap
+[] = 在栈里
+() = 在堆里
 
-[Elem A, ptr] -> (Elem B, ptr) -> (Empty, *junk*)
+[Elem A, ptr] -> (Elem B, ptr) -> (Empty, *一堆垃圾信息*)
 ```
 
-There are two key issues:
+俩缺点：
+* 我们在链表最尾的节点申请了一块内存用来…嗯…啥也没干，就是申请了，任性。
+* 链表的头节点在栈里，不像其他的节点一样在堆里。
 
-* We're allocating a node that just says "I'm not actually a Node"
-* One of our nodes isn't heap-allocated at all.
+仔细想想，这俩货就不能结合结合吗？一个是多申请了内存不干事儿，一个是该申请内存放堆里它偏不。
 
-On the surface, these two seem to cancel each-other out. We allocate an
-extra node, but one of our nodes doesn't need to be allocated at all.
-However, consider the following potential layout for our list:
+于是乎，我们改进了一下：
+
 
 ```text
 [ptr] -> (Elem A, ptr) -> (Elem B, *null*)
 ```
 
-In this layout we now unconditionally heap allocate our nodes. The
-key difference is the absence of the *junk* from our first layout. What is
-this junk? To understand that, we'll need to look at how an enum is laid out
-in memory.
-
-In general, if we have an enum like:
+在这样的结构里，我们把所有节点都通过申请堆内存来储存。然后用一个空指针替换了*一堆垃圾信息*。所谓的一堆垃圾信息是什么？好吧，要解答这个问题，我们先了解一下枚举类型的内存布局。
+举例说明，我们现有枚举类型：
 
 ```rust ,ignore
-enum Foo {
-    D1(T1),
-    D2(T2),
+enum Value {
+	Empty,
+    Int(i32),
+    Flt(f32),
+	Str(String),
     ...
-    Dn(Tn),
+    Dic(struct {key: String, val:String}),
 }
 ```
+
 
 A Foo will need to store some integer to indicate which *variant* of the enum it
 represents (`D1`, `D2`, .. `Dn`). This is the *tag* of the enum. It will also
